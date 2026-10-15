@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.gmes.hsreport"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.gmes.hsreport"
