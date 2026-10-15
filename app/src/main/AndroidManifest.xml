@@ -4,7 +4,7 @@
 
     <application
         android:allowBackup="true"
-        android:label="GMES H&S Report"
+        android:label="GMES H&amp;S Report"
         android:supportsRtl="true"
         android:theme="@style/Theme.GMESHSReport">
         <activity
