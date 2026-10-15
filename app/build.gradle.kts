@@ -38,6 +38,7 @@ dependencies {
     implementation("androidx.compose.foundation:foundation:1.9.2")
     implementation("androidx.compose.material3:material3:1.4.0")
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
+    implementation("androidx.exifinterface:exifinterface:1.4.1")
     implementation("io.coil-kt.coil3:coil-compose:3.3.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling:1.9.2")
