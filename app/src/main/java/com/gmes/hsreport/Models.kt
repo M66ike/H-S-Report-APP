@@ -170,8 +170,8 @@ data class ReportData(
         put("managerName", managerName)
         put("managerRole", managerRole)
         put("territory", territory)
-        put("reviewerId", reviewerId)
-        put("reviewerName", reviewerName)
+        put("reviewerId", personId)
+        put("reviewerName", personName)
         put("answers", JSONObject(answers))
         put("comments", JSONObject(comments))
         put("photos", JSONObject(photos))
@@ -201,8 +201,8 @@ data class ReportData(
                 managerName = o.optString("managerName"),
                 managerRole = o.optString("managerRole"),
                 territory = o.optString("territory", "UK"),
-                reviewerId = o.optString("reviewerId"),
-                reviewerName = o.optString("reviewerName"),
+                reviewerId = o.optString("personId"),
+                reviewerName = o.optString("personName"),
                 answers = o.stringMap("answers"),
                 comments = o.stringMap("comments"),
                 photos = o.stringMap("photos"),
