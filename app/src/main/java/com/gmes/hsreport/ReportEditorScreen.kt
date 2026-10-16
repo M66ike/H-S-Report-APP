@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Signature
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -93,6 +94,10 @@ fun ReportEditorScreen(store: ReportStore, reportId: String, onBack: () -> Unit)
     val people = remember(reportId) { store.listPeople() }
     var signing by remember { mutableStateOf(false) }
     var exporting by remember { mutableStateOf(false) }
+    var showOptions by remember { mutableStateOf(false) }
+    var optionVersion by remember { mutableIntStateOf(0) }
+    val sectorOptions = remember(optionVersion) { store.getSectorOptions() }
+    val territoryOptions = remember(optionVersion) { store.getTerritoryOptions() }
 
     fun update(block: (ReportData) -> ReportData) {
         report = block(report).copy(updatedAt = System.currentTimeMillis())
@@ -183,6 +188,11 @@ fun ReportEditorScreen(store: ReportStore, reportId: String, onBack: () -> Unit)
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
                 },
+                actions = {
+                    IconButton(onClick = { showOptions = true }) {
+                        Icon(Icons.Default.Settings, "Report suggestions", tint = Color.White)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = GmesTeal,
                     titleContentColor = Color.White,
@@ -197,7 +207,13 @@ fun ReportEditorScreen(store: ReportStore, reportId: String, onBack: () -> Unit)
 
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (page) {
-                    0 -> DetailsPage(report, people, ::update)
+                    0 -> DetailsPage(
+                        report = report,
+                        people = people,
+                        sectorOptions = sectorOptions,
+                        territoryOptions = territoryOptions,
+                        onUpdate = ::update
+                    )
 
                     in 1..ReportTemplate.sections.size -> {
                         val section = ReportTemplate.sections[page - 1]
@@ -302,6 +318,20 @@ fun ReportEditorScreen(store: ReportStore, reportId: String, onBack: () -> Unit)
             }
         )
     }
+
+    if (showOptions) {
+        ReportOptionsDialog(
+            sectorOptions = sectorOptions,
+            territoryOptions = territoryOptions,
+            onDismiss = { showOptions = false },
+            onSave = { sectors, territories ->
+                store.saveSectorOptions(sectors)
+                store.saveTerritoryOptions(territories)
+                optionVersion++
+                showOptions = false
+            }
+        )
+    }
 }
 
 private fun sectionLabel(section: SectionDef): String = when (section.id) {
@@ -333,6 +363,8 @@ private fun SectionNavigator(titles: List<String>, selected: Int, onSelect: (Int
 private fun DetailsPage(
     report: ReportData,
     people: List<Person>,
+    sectorOptions: List<String>,
+    territoryOptions: List<String>,
     onUpdate: ((ReportData) -> ReportData) -> Unit
 ) {
     Column(
@@ -358,10 +390,29 @@ private fun DetailsPage(
         }
 
         EditField("Person Role", report.personRole) { value -> onUpdate { it.copy(personRole = value) } }
-        EditField("Sector", report.sector) { value -> onUpdate { it.copy(sector = value) } }
+
+        SuggestionField(
+            label = "Sector / Project Type",
+            value = report.sector,
+            suggestions = sectorOptions,
+            onValue = { value -> onUpdate { it.copy(sector = value) } }
+        )
+
         EditField("GMES Site Manager / Supervisor", report.managerName) { value -> onUpdate { it.copy(managerName = value) } }
         EditField("Manager / Supervisor Role", report.managerRole) { value -> onUpdate { it.copy(managerRole = value) } }
-        EditField("Territory", report.territory) { value -> onUpdate { it.copy(territory = value) } }
+
+        SuggestionField(
+            label = "Territory",
+            value = report.territory,
+            suggestions = territoryOptions,
+            onValue = { value -> onUpdate { it.copy(territory = value) } }
+        )
+
+        Text(
+            "Tap the settings icon at the top to add, edit or remove Sector / Project Type and Territory suggestions. You can always type a different value manually.",
+            fontSize = 12.sp,
+            color = Color.Gray
+        )
 
         Text(
             "The person completing the report is also used automatically as the reviewer on every section.",
