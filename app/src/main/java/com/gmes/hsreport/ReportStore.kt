@@ -6,6 +6,8 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
 class ReportStore(context: Context) : SQLiteOpenHelper(context, "gmes_hs_reports.db", null, 1) {
+    private val prefs = context.getSharedPreferences("gmes_hs_report_options", Context.MODE_PRIVATE)
+
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
             """
@@ -94,5 +96,29 @@ class ReportStore(context: Context) : SQLiteOpenHelper(context, "gmes_hs_reports
 
     fun deletePerson(id: String) {
         writableDatabase.delete("people", "id=?", arrayOf(id))
+    }
+
+    fun getSectorOptions(): List<String> = readOptions(
+        "sector_options",
+        listOf("Data", "Commercial", "Healthcare", "Industrial")
+    )
+
+    fun getTerritoryOptions(): List<String> = readOptions(
+        "territory_options",
+        listOf("UK", "Europe", "Ireland")
+    )
+
+    fun saveSectorOptions(values: List<String>) = saveOptions("sector_options", values)
+
+    fun saveTerritoryOptions(values: List<String>) = saveOptions("territory_options", values)
+
+    private fun readOptions(key: String, defaults: List<String>): List<String> {
+        val saved = prefs.getString(key, null) ?: return defaults
+        return saved.split('\n').map(String::trim).filter(String::isNotBlank).distinct().ifEmpty { defaults }
+    }
+
+    private fun saveOptions(key: String, values: List<String>) {
+        val cleaned = values.map(String::trim).filter(String::isNotBlank).distinct()
+        prefs.edit().putString(key, cleaned.joinToString("\n")).apply()
     }
 }
