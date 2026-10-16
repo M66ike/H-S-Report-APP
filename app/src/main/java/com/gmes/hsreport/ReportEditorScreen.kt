@@ -86,7 +86,9 @@ import java.io.File
 @Composable
 fun ReportEditorScreen(store: ReportStore, reportId: String, onBack: () -> Unit) {
     val context = LocalContext.current
-    var report by remember(reportId) { mutableStateOf(store.getReport(reportId) ?: ReportData(id = reportId)) }
+    var report by remember(reportId) {
+        mutableStateOf(store.getReport(reportId) ?: ReportData(id = reportId))
+    }
     var page by remember(reportId) { mutableIntStateOf(0) }
     val people = remember(reportId) { store.listPeople() }
     var signing by remember { mutableStateOf(false) }
@@ -144,7 +146,7 @@ fun ReportEditorScreen(store: ReportStore, reportId: String, onBack: () -> Unit)
         try {
             if (uri != null) {
                 excelBytes?.let { bytes ->
-                    context.contentResolver.openOutputStream(uri)?.use { out -> out.write(bytes) }
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
                 }
                 Toast.makeText(context, "Excel report exported.", Toast.LENGTH_SHORT).show()
             }
@@ -154,11 +156,13 @@ fun ReportEditorScreen(store: ReportStore, reportId: String, onBack: () -> Unit)
         }
     }
 
-    val pdfLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+    val pdfLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri ->
         try {
             if (uri != null) {
                 pdfBytes?.let { bytes ->
-                    context.contentResolver.openOutputStream(uri)?.use { out -> out.write(bytes) }
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
                 }
                 Toast.makeText(context, "PDF report exported.", Toast.LENGTH_SHORT).show()
             }
@@ -169,14 +173,16 @@ fun ReportEditorScreen(store: ReportStore, reportId: String, onBack: () -> Unit)
     }
 
     val titles = remember {
-        listOf("Details") + ReportTemplate.sections.map { sectionLabel(it) } + listOf("Review")
+        listOf("Details") + ReportTemplate.sections.map(::sectionLabel) + listOf("Review")
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(report.projectName.ifBlank { "New H&S Report" }) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = GmesTeal,
                     titleContentColor = Color.White,
@@ -186,21 +192,31 @@ fun ReportEditorScreen(store: ReportStore, reportId: String, onBack: () -> Unit)
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            SectionNavigator(titles = titles, selected = page, onSelect = { page = it })
+            SectionNavigator(titles, page) { page = it }
             HorizontalDivider()
+
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (page) {
-                    0 -> DetailsPage(report = report, people = people, onUpdate = ::update)
+                    0 -> DetailsPage(report, people, ::update)
+
                     in 1..ReportTemplate.sections.size -> {
                         val section = ReportTemplate.sections[page - 1]
                         SectionPage(
                             report = report,
                             section = section,
-                            onAnswer = { id, value -> update { it.copy(answers = it.answers + (id to value)) } },
-                            onComment = { value -> update { it.copy(comments = it.comments + (section.id to value)) } },
+                            onAnswer = { id, value ->
+                                update { it.copy(answers = it.answers + (id to value)) }
+                            },
+                            onComment = { value ->
+                                update { it.copy(comments = it.comments + (section.id to value)) }
+                            },
                             onCamera = { qid ->
                                 val file = createPhotoFile(context, report.id, qid)
-                                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                                val uri = FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    file
+                                )
                                 pendingPhotoId = qid
                                 pendingCameraPath = file.absolutePath
                                 pendingCameraUri = uri
@@ -220,6 +236,7 @@ fun ReportEditorScreen(store: ReportStore, reportId: String, onBack: () -> Unit)
                             }
                         )
                     }
+
                     else -> ReviewPage(
                         report = report,
                         onSign = { signing = true },
@@ -327,19 +344,37 @@ private fun DetailsPage(
         EditField("Site Visit Date (YYYY-MM-DD)", report.visitDate) { value -> onUpdate { it.copy(visitDate = value) } }
         EditField("Project Name", report.projectName) { value -> onUpdate { it.copy(projectName = value) } }
         EditField("GMES Project No.", report.projectNo) { value -> onUpdate { it.copy(projectNo = value) } }
-        PersonPicker("Person Completing Report", report.personName, people) { person ->
-            onUpdate { it.copy(personId = person.id, personName = person.name, personRole = person.role) }
+
+        PersonPicker("Person Completing Report / Reviewer", report.personName, people) { person ->
+            onUpdate {
+                it.copy(
+                    personId = person.id,
+                    personName = person.name,
+                    personRole = person.role,
+                    reviewerId = person.id,
+                    reviewerName = person.name
+                )
+            }
         }
+
         EditField("Person Role", report.personRole) { value -> onUpdate { it.copy(personRole = value) } }
         EditField("Sector", report.sector) { value -> onUpdate { it.copy(sector = value) } }
         EditField("GMES Site Manager / Supervisor", report.managerName) { value -> onUpdate { it.copy(managerName = value) } }
         EditField("Manager / Supervisor Role", report.managerRole) { value -> onUpdate { it.copy(managerRole = value) } }
         EditField("Territory", report.territory) { value -> onUpdate { it.copy(territory = value) } }
-        PersonPicker("Reviewer", report.reviewerName, people) { person ->
-            onUpdate { it.copy(reviewerId = person.id, reviewerName = person.name) }
-        }
+
+        Text(
+            "The person completing the report is also used automatically as the reviewer on every section.",
+            fontSize = 12.sp,
+            color = Color.Gray
+        )
+
         if (people.isEmpty()) {
-            Text("Tip: add people from the People & Reviewers menu on the home screen.", color = Color.Gray, fontSize = 12.sp)
+            Text(
+                "Tip: add regular report authors from the People & Reviewers menu on the home screen.",
+                color = Color.Gray,
+                fontSize = 12.sp
+            )
         }
         Spacer(Modifier.height(20.dp))
     }
@@ -377,7 +412,9 @@ private fun PersonPicker(label: String, selected: String, people: List<Person>, 
                     text = {
                         Column {
                             Text(person.name)
-                            if (person.role.isNotBlank()) Text(person.role, fontSize = 11.sp, color = Color.Gray)
+                            if (person.role.isNotBlank()) {
+                                Text(person.role, fontSize = 11.sp, color = Color.Gray)
+                            }
                         }
                     },
                     onClick = {
@@ -407,7 +444,9 @@ private fun SectionPage(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(section.title, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = GmesTeal)
-                if (section.subtitle.isNotBlank()) Text(section.subtitle, color = Color.Gray, fontSize = 12.sp)
+                if (section.subtitle.isNotBlank()) {
+                    Text(section.subtitle, color = Color.Gray, fontSize = 12.sp)
+                }
             }
             if (section.scored) ScoreBadge(report.sectionPercent(section))
         }
@@ -416,7 +455,7 @@ private fun SectionPage(
             QuestionCard(
                 question = q,
                 selected = report.answers[q.id],
-                photoPath = report.photos[q.id],
+                photoPath = if (q.photoRecommended) report.photos[q.id] else null,
                 onAnswer = { onAnswer(q.id, it) },
                 onCamera = { onCamera(q.id) },
                 onGallery = { onGallery(q.id) },
@@ -427,7 +466,9 @@ private fun SectionPage(
         OutlinedTextField(
             value = report.comments[section.id].orEmpty(),
             onValueChange = onComment,
-            label = { Text(if (section.id == "client") "Comments on Client items" else "Section comments") },
+            label = {
+                Text(if (section.id == "client") "Comments on Client items" else "Section comments")
+            },
             modifier = Modifier.fillMaxWidth().height(125.dp)
         )
         Spacer(Modifier.height(12.dp))
@@ -439,7 +480,10 @@ private fun ScoreBadge(score: Int) {
     Box(
         modifier = Modifier
             .size(62.dp)
-            .background(if (score > 80) Color(0xFF7CDD12) else Color(0xFFFFE300), RoundedCornerShape(31.dp)),
+            .background(
+                if (score > 80) Color(0xFF7CDD12) else Color(0xFFFFE300),
+                RoundedCornerShape(31.dp)
+            ),
         contentAlignment = Alignment.Center
     ) {
         Text("$score%", fontWeight = FontWeight.Bold)
@@ -462,10 +506,20 @@ private fun QuestionCard(
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth()) {
-                Text(question.id, fontWeight = FontWeight.Bold, color = GmesTeal, modifier = Modifier.width(48.dp))
+                Text(
+                    question.id,
+                    fontWeight = FontWeight.Bold,
+                    color = GmesTeal,
+                    modifier = Modifier.width(48.dp)
+                )
                 Text(question.text, modifier = Modifier.weight(1f))
                 question.weight?.let {
-                    Text("${(it * 100).toInt()}%", fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.padding(start = 8.dp))
+                    Text(
+                        "${(it * 100).toInt()}%",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
                 }
             }
 
@@ -482,35 +536,37 @@ private fun QuestionCard(
                 }
             }
 
-            HorizontalDivider()
+            if (question.photoRecommended) {
+                HorizontalDivider()
 
-            if (!photoPath.isNullOrBlank() && File(photoPath).exists()) {
-                AsyncImage(
-                    model = File(photoPath),
-                    contentDescription = "Evidence for ${question.id}",
-                    modifier = Modifier.fillMaxWidth().height(190.dp).background(Color.LightGray),
-                    contentScale = ContentScale.Crop
-                )
-            }
+                if (!photoPath.isNullOrBlank() && File(photoPath).exists()) {
+                    AsyncImage(
+                        model = File(photoPath),
+                        contentDescription = "Evidence for ${question.id}",
+                        modifier = Modifier.fillMaxWidth().height(190.dp).background(Color.LightGray),
+                        contentScale = ContentScale.Fit
+                    )
+                }
 
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(onClick = onCamera) {
-                    Icon(Icons.Default.CameraAlt, null)
-                    Spacer(Modifier.width(5.dp))
-                    Text("Camera")
-                }
-                OutlinedButton(onClick = onGallery) {
-                    Icon(Icons.Default.PhotoLibrary, null)
-                    Spacer(Modifier.width(5.dp))
-                    Text("Gallery")
-                }
-                if (!photoPath.isNullOrBlank()) {
-                    TextButton(onClick = onRemovePhoto) {
-                        Icon(Icons.Default.Delete, null)
-                        Text("Remove")
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(onClick = onCamera) {
+                        Icon(Icons.Default.CameraAlt, null)
+                        Spacer(Modifier.width(5.dp))
+                        Text("Camera")
+                    }
+                    OutlinedButton(onClick = onGallery) {
+                        Icon(Icons.Default.PhotoLibrary, null)
+                        Spacer(Modifier.width(5.dp))
+                        Text("Gallery")
+                    }
+                    if (!photoPath.isNullOrBlank()) {
+                        TextButton(onClick = onRemovePhoto) {
+                            Icon(Icons.Default.Delete, null)
+                            Text("Remove")
+                        }
                     }
                 }
             }
@@ -532,10 +588,18 @@ private fun ReviewPage(
     ) {
         Text("Review & Export", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = GmesTeal)
 
-        Card(colors = CardDefaults.cardColors(containerColor = GmesLight), modifier = Modifier.fillMaxWidth()) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = GmesLight),
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Overall Score", fontWeight = FontWeight.Bold)
-                Text("${report.overallPercent()}%", fontSize = 42.sp, fontWeight = FontWeight.Bold, color = GmesTeal)
+                Text(
+                    "${report.overallPercent()}%",
+                    fontSize = 42.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = GmesTeal
+                )
                 ReportTemplate.sections.filter { it.scored }.forEach { section ->
                     Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                         Text(section.title.substringAfter("- ").trim(), modifier = Modifier.weight(1f))
@@ -548,7 +612,8 @@ private fun ReviewPage(
         OutlinedCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Reviewer", fontWeight = FontWeight.Bold)
-                Text(report.reviewerName.ifBlank { report.personName.ifBlank { "Not selected" } })
+                Text(report.personName.ifBlank { "Not selected" })
+
                 if (report.signaturePath.isNotBlank() && File(report.signaturePath).exists()) {
                     AsyncImage(
                         model = File(report.signaturePath),
@@ -559,7 +624,11 @@ private fun ReviewPage(
                 } else {
                     Text("No signature captured", color = Color.Gray)
                 }
-                Button(onClick = onSign, colors = ButtonDefaults.buttonColors(containerColor = GmesTeal)) {
+
+                Button(
+                    onClick = onSign,
+                    colors = ButtonDefaults.buttonColors(containerColor = GmesTeal)
+                ) {
                     Icon(Icons.Default.Signature, null)
                     Spacer(Modifier.width(6.dp))
                     Text(if (report.signaturePath.isBlank()) "Sign Report" else "Replace Signature")
@@ -570,7 +639,9 @@ private fun ReviewPage(
         Button(
             onClick = onComplete,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = if (report.status == "Completed") Color.Gray else GmesTeal)
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (report.status == "Completed") Color.Gray else GmesTeal
+            )
         ) {
             Icon(Icons.Default.CheckCircle, null)
             Spacer(Modifier.width(7.dp))
@@ -579,6 +650,7 @@ private fun ReviewPage(
 
         HorizontalDivider()
         Text("Exports", fontWeight = FontWeight.Bold)
+
         Button(
             onClick = onExportExcel,
             modifier = Modifier.fillMaxWidth(),
@@ -588,13 +660,15 @@ private fun ReviewPage(
             Spacer(Modifier.width(7.dp))
             Text("Export Excel (.xlsx)")
         }
+
         OutlinedButton(onClick = onExportPdf, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.PictureAsPdf, null, tint = GmesTeal)
             Spacer(Modifier.width(7.dp))
             Text("Export PDF")
         }
+
         Text(
-            "Excel keeps the fixed FM_038 header, question, comment and section-score cell positions so the report sheet can be copied/imported into the existing combined scoring workbook.",
+            "The report author is used as the reviewer throughout the exported report.",
             fontSize = 12.sp,
             color = Color.Gray
         )
@@ -616,7 +690,11 @@ private fun SignatureDialog(
         title = { Text("Sign Report") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Sign inside the box. The signature is stored with this report.", fontSize = 12.sp, color = Color.Gray)
+                Text(
+                    "Sign inside the box. The signature is stored with this report.",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
                 Canvas(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -645,12 +723,19 @@ private fun SignatureDialog(
                             moveTo(points.first().x, points.first().y)
                             points.drop(1).forEach { lineTo(it.x, it.y) }
                         }
-                        drawPath(path, Color.Black, style = Stroke(width = 4f, cap = StrokeCap.Round))
+                        drawPath(
+                            path,
+                            Color.Black,
+                            style = Stroke(width = 4f, cap = StrokeCap.Round)
+                        )
                     }
                     strokes.forEach(::drawStroke)
                     drawStroke(current)
                 }
-                TextButton(onClick = { strokes.clear(); current = emptyList() }) { Text("Clear") }
+                TextButton(onClick = {
+                    strokes.clear()
+                    current = emptyList()
+                }) { Text("Clear") }
             }
         },
         confirmButton = {
