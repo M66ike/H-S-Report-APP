@@ -223,8 +223,26 @@ fun ReportEditorScreen(store: ReportStore, reportId: String, onBack: () -> Unit)
                             onAnswer = { id, value ->
                                 update { it.copy(answers = it.answers + (id to value)) }
                             },
-                            onComment = { value ->
-                                update { it.copy(comments = it.comments + (section.id to value)) }
+                            onItemComment = { id, value ->
+                                update { current ->
+                                    val updatedComments = if (value.isBlank()) {
+                                        current.comments - id
+                                    } else {
+                                        current.comments + (id to value)
+                                    }
+                                    val combined = section.questions.mapNotNull { q ->
+                                        updatedComments[q.id]
+                                            ?.trim()
+                                            ?.takeIf { it.isNotBlank() }
+                                            ?.let { "${q.id} - $it" }
+                                    }.joinToString("\n")
+                                    val finalComments = if (combined.isBlank()) {
+                                        updatedComments - section.id
+                                    } else {
+                                        updatedComments + (section.id to combined)
+                                    }
+                                    current.copy(comments = finalComments)
+                                }
                             },
                             onCamera = { qid ->
                                 val file = createPhotoFile(context, report.id, qid)
@@ -483,7 +501,7 @@ private fun SectionPage(
     report: ReportData,
     section: SectionDef,
     onAnswer: (String, String) -> Unit,
-    onComment: (String) -> Unit,
+    onItemComment: (String, String) -> Unit,
     onCamera: (String) -> Unit,
     onGallery: (String) -> Unit,
     onRemovePhoto: (String) -> Unit
@@ -506,22 +524,38 @@ private fun SectionPage(
             QuestionCard(
                 question = q,
                 selected = report.answers[q.id],
+                comment = report.comments[q.id].orEmpty(),
                 photoPath = if (q.photoRecommended) report.photos[q.id] else null,
                 onAnswer = { onAnswer(q.id, it) },
+                onComment = { onItemComment(q.id, it) },
                 onCamera = { onCamera(q.id) },
                 onGallery = { onGallery(q.id) },
                 onRemovePhoto = { onRemovePhoto(q.id) }
             )
         }
 
-        OutlinedTextField(
-            value = report.comments[section.id].orEmpty(),
-            onValueChange = onComment,
-            label = {
-                Text(if (section.id == "client") "Comments on Client items" else "Section comments")
-            },
-            modifier = Modifier.fillMaxWidth().height(125.dp)
-        )
+        OutlinedCard(Modifier.fillMaxWidth()) {
+            Column(
+                Modifier.fillMaxWidth().padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    if (section.id == "client") "Comments on Client items" else "Combined section comments",
+                    fontWeight = FontWeight.Bold,
+                    color = GmesTeal
+                )
+                Text(
+                    "This is the single comments box that will be used on the exported report.",
+                    fontSize = 11.sp,
+                    color = Color.Gray
+                )
+                val combined = report.comments[section.id].orEmpty()
+                Text(
+                    combined.ifBlank { "No comments entered for this section." },
+                    color = if (combined.isBlank()) Color.Gray else Color.Unspecified
+                )
+            }
+        }
         Spacer(Modifier.height(12.dp))
     }
 }
@@ -545,8 +579,10 @@ private fun ScoreBadge(score: Int) {
 private fun QuestionCard(
     question: QuestionDef,
     selected: String?,
+    comment: String,
     photoPath: String?,
     onAnswer: (String) -> Unit,
+    onComment: (String) -> Unit,
     onCamera: () -> Unit,
     onGallery: () -> Unit,
     onRemovePhoto: () -> Unit
@@ -586,6 +622,15 @@ private fun QuestionCard(
                     )
                 }
             }
+
+            OutlinedTextField(
+                value = comment,
+                onValueChange = onComment,
+                label = { Text("Optional comment") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 1,
+                maxLines = 3
+            )
 
             if (question.photoRecommended) {
                 HorizontalDivider()
